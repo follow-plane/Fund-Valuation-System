@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Streamlit
+.streamlit/config.toml
+
+# 数据库文件 (包含私人资产数据，禁止上传)
+*.db
+*.db-journal
+
+# 临时文件
+tmp*/
+*.log
+*.bak
+
+# 编辑器配置
+.vscode/
+.idea/

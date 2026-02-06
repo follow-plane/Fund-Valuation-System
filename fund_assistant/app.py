@@ -1018,7 +1018,9 @@ def render_holdings():
                         st.caption(f"📅 有效净值日期: **{eff_date}** (根据 15:00 规则判定)")
                         
                         with st.form("trade_form"):
-                            t_price = st.number_input("成交净值 (元)", value=float(est_price), min_value=0.0001, step=0.0001, format="%.4f", help="默认为当前实时估值，可手动修正为确认净值")
+                            # Ensure value is at least min_value to avoid StreamlitValueBelowMinError
+                            default_t_price = max(0.0001, float(est_price))
+                            t_price = st.number_input("成交净值 (元)", value=default_t_price, min_value=0.0001, step=0.0001, format="%.4f", help="默认为当前实时估值，可手动修正为确认净值")
                             
                             if "加仓" in trade_type:
                                 t_amount = st.number_input("买入金额 (元)", min_value=0.0, step=100.0, format="%.2f")

@@ -253,6 +253,11 @@ def show_dashboard_metrics():
     col2.metric("累计收益 (元)", f"{total_profit:+,.2f}", f"{profit_rate:+.2f}%", delta_color="inverse")
     col3.metric("当日预估收益", f"{day_profit:+,.2f}", delta_color="inverse")
     
+    # Save daily asset snapshot for history chart
+    if total_market_value > 0:
+        today_str = datetime.date.today().strftime('%Y-%m-%d')
+        database.save_asset_snapshot(today_str, total_market_value, total_cost, day_profit)
+    
     st.divider()
     
     # Market Indices
@@ -339,36 +344,16 @@ def show_dashboard_metrics():
     
     with c1:
         if not holdings.empty:
-            # Calculate REAL historical trend of the current portfolio
-            holdings_list = holdings[['fund_code', 'share']].to_dict('records')
+            # Use RECORDED history (Real Dashboard Asset History)
+            history_df = database.get_asset_history()
             
-            # Determine time range based on earliest purchase date
-            days_to_show = 30 # Default
-            try:
-                if 'purchase_date' in holdings.columns:
-                    valid_dates = pd.to_datetime(holdings['purchase_date'], errors='coerce').dropna()
-                    if not valid_dates.empty:
-                        earliest_date = valid_dates.min()
-                        days_since = (datetime.datetime.now() - earliest_date).days
-                        # Ensure we show at least 1 day, and add a small buffer to ensure the start date is included
-                        days_to_show = max(days_since, 1)
-            except Exception as e:
-                print(f"Error calculating days since inception: {e}")
-
-            history_series = data_api.get_portfolio_history(holdings_list, days=days_to_show)
-            
-            if not history_series.empty:
-                # Add current real-time value as the last point if today is not in history (history is usually T-1)
-                today = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                last_hist_date = history_series.index[-1]
-                
-                # If the last history date is before today, we append the real-time calculated total_market_value
-                if last_hist_date < today:
-                    # Append current real-time value
-                    history_series[today] = total_market_value
+            if not history_df.empty:
+                history_df['date'] = pd.to_datetime(history_df['date'])
+                history_df = history_df.set_index('date')
+                history_series = history_df['total_market_value']
                 
                 # Determine Color based on Day Profit
-                chart_color = '#FF3333' if day_profit >= 0 else '#00CC00' # Red if up, Green if down
+                chart_color = '#FF3333' if day_profit >= 0 else '#00CC00'
                 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
@@ -382,17 +367,37 @@ def show_dashboard_metrics():
                     fillcolor=f"rgba({255 if day_profit >= 0 else 0}, {51 if day_profit >= 0 else 204}, {51 if day_profit >= 0 else 0}, 0.1)"
                 ))
                 
-                fig.update_layout(
-                    title=f"自建仓以来资产走势 (近 {days_to_show} 天)",
+                days_recorded = len(history_series)
+                
+                # Layout configuration
+                layout_args = dict(
+                    title=f"资产历史走势 (已记录 {days_recorded} 天)",
                     template='plotly_dark',
                     xaxis_title='日期',
                     yaxis_title='总资产 (元)',
+                    xaxis=dict(
+                        type='date',
+                        tickformat="%Y-%m-%d",
+                        dtick="D1"  # Force daily ticks
+                    ),
                     margin=dict(l=0, r=0, t=40, b=0),
                     hovermode='x unified'
                 )
+                
+                # If only 1 data point, extend range to show surrounding dates (Yesterday/Tomorrow)
+                # This prevents the chart from looking empty and ensures the single tick is centered
+                if days_recorded == 1:
+                    one_date = history_series.index[0]
+                    start_range = one_date - datetime.timedelta(days=1)
+                    end_range = one_date + datetime.timedelta(days=1)
+                    layout_args['xaxis']['range'] = [start_range, end_range]
+
+                fig.update_layout(**layout_args)
                 st.plotly_chart(fig, use_container_width=True)
+                if days_recorded < 2:
+                    st.caption("ℹ️ 系统从今日起开始记录您的资产曲线，数据将随时间自动累积。")
             else:
-                st.info("正在获取历史数据或数据不足...")
+                st.info("正在初始化资产记录...")
         else:
             st.info("暂无持仓数据，请前往「持仓管理」添加。")
             

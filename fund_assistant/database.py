@@ -91,6 +91,16 @@ def init_db():
         )
     ''')
     
+    # Asset History table: Stores daily snapshots of total portfolio value
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS asset_history (
+            date TEXT PRIMARY KEY,
+            total_market_value REAL,
+            total_cost REAL,
+            day_profit REAL
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -288,6 +298,26 @@ def clear_search_history():
     c.execute("DELETE FROM search_history")
     conn.commit()
     conn.close()
+
+# --- Asset History Operations ---
+def save_asset_snapshot(date_str, total_market_value, total_cost, day_profit):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        INSERT OR REPLACE INTO asset_history (date, total_market_value, total_cost, day_profit)
+        VALUES (?, ?, ?, ?)
+    ''', (date_str, total_market_value, total_cost, day_profit))
+    conn.commit()
+    conn.close()
+
+def get_asset_history():
+    conn = get_connection()
+    try:
+        df = pd.read_sql_query("SELECT * FROM asset_history ORDER BY date ASC", conn)
+    except:
+        df = pd.DataFrame()
+    conn.close()
+    return df
 
 # Initialize DB on module load if not exists
 if not os.path.exists(DB_FILE):

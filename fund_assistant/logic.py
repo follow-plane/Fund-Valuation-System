@@ -1,7 +1,35 @@
 import pandas as pd
 import numpy as np
 import datetime
+import os
+import sys
 from data_api import get_fund_nav_history
+
+def ensure_dependencies():
+    """
+    Ensure required dependencies are in sys.path.
+    This helps if the user is running the app from a different environment.
+    """
+    try:
+        import openai
+    except ImportError:
+        # Try to find .venv site-packages
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "..", ".venv", "Lib", "site-packages"),
+            os.path.join(os.path.dirname(__file__), ".venv", "Lib", "site-packages"),
+        ]
+        for path in possible_paths:
+            if os.path.exists(path) and path not in sys.path:
+                sys.path.append(path)
+                try:
+                    import openai
+                    return True
+                except ImportError:
+                    continue
+    return False
+
+# Try to load dependencies at module level
+ensure_dependencies()
 
 def analyze_fund_with_ai(fund_code, api_key, endpoint_id, fund_name=""):
     """
@@ -10,7 +38,19 @@ def analyze_fund_with_ai(fund_code, api_key, endpoint_id, fund_name=""):
     try:
         import openai
     except ImportError as e:
-        return f"导入 openai 库失败: {str(e)}。请检查环境配置。"
+        import sys
+        venv_path = os.path.join(os.path.dirname(__file__), "..", ".venv")
+        exists = "存在" if os.path.exists(venv_path) else "不存在"
+        return (
+            f"❌ **AI 诊断启动失败**\n\n"
+            f"原因: 找不到 `openai` 库 ({str(e)})\n\n"
+            f"**排查信息**:\n"
+            f"- 当前 Python: `{sys.executable}`\n"
+            f"- 虚拟环境 ({venv_path}): **{exists}**\n\n"
+            f"**解决方法**:\n"
+            f"1. 请确保已安装依赖：`pip install openai` 或运行目录下的 `run.bat`。\n"
+            f"2. 如果刚安装完，请**彻底关闭并重启** Streamlit 命令行窗口。"
+        )
     except Exception as e:
         return f"发生未知错误: {str(e)}"
 
@@ -83,7 +123,19 @@ def analyze_portfolio_with_ai(holdings, api_key, endpoint_id):
     try:
         import openai
     except ImportError as e:
-        return f"导入 openai 库失败: {str(e)}。请检查环境配置。"
+        import sys
+        venv_path = os.path.join(os.path.dirname(__file__), "..", ".venv")
+        exists = "存在" if os.path.exists(venv_path) else "不存在"
+        return (
+            f"❌ **投资组合诊断启动失败**\n\n"
+            f"原因: 找不到 `openai` 库 ({str(e)})\n\n"
+            f"**排查信息**:\n"
+            f"- 当前 Python: `{sys.executable}`\n"
+            f"- 虚拟环境 ({venv_path}): **{exists}**\n\n"
+            f"**解决方法**:\n"
+            f"1. 请确保已安装依赖：`pip install openai` 或运行目录下的 `run.bat`。\n"
+            f"2. 如果刚安装完，请**彻底关闭并重启** Streamlit 命令行窗口。"
+        )
     except Exception as e:
         return f"发生未知错误: {str(e)}"
 

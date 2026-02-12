@@ -6,6 +6,17 @@ import concurrent.futures
 import requests
 import re
 import json
+import threading
+
+# Global lock for akshare calls to prevent py_mini_racer (V8) crashes in multi-threaded environments
+ak_lock = threading.Lock()
+
+def safe_ak_call(func, *args, **kwargs):
+    """
+    Wrapper to call akshare functions with a global lock.
+    """
+    with ak_lock:
+        return func(*args, **kwargs)
 
 # --- Cached Data Fetching Functions ---
 
@@ -15,7 +26,7 @@ def _fetch_all_fund_names():
     Fetch list of all funds. Heavy payload (~10MB+).
     """
     try:
-        return ak.fund_name_em()
+        return safe_ak_call(ak.fund_name_em)
     except Exception as e:
         print(f"Error fetching fund names: {e}")
         return pd.DataFrame()
@@ -26,7 +37,7 @@ def _fetch_fund_history_raw(fund_code):
     Fetch full history for a fund.
     """
     try:
-        df = ak.fund_open_fund_info_em(symbol=fund_code, indicator="单位净值走势")
+        df = safe_ak_call(ak.fund_open_fund_info_em, symbol=fund_code, indicator="单位净值走势")
         if not df.empty:
             df['净值日期'] = pd.to_datetime(df['净值日期'])
             df['单位净值'] = df['单位净值'].astype(float)
@@ -150,7 +161,7 @@ def _fetch_realtime_estimations():
     WARNING: Slow (~3s). Use get_batch_realtime_estimates for specific funds instead.
     """
     try:
-        df = ak.fund_value_estimation_em(symbol="全部")
+        df = safe_ak_call(ak.fund_value_estimation_em, symbol="全部")
         if not df.empty:
             rename_map = {}
             estimate_date = None
@@ -468,7 +479,7 @@ def _fetch_financial_news():
     """
     try:
         # 1. Try EastMoney first (Has direct URLs)
-        df = ak.stock_info_global_em()
+        df = safe_ak_call(ak.stock_info_global_em)
         if not df.empty:
             news_list = []
             for _, row in df.head(15).iterrows():
@@ -487,7 +498,7 @@ def _fetch_financial_news():
         
     try:
         # 2. Fallback to Cailian Press (CLS) - No direct URLs, use Search
-        df = ak.stock_info_global_cls()
+        df = safe_ak_call(ak.stock_info_global_cls)
         if not df.empty:
             news_list = []
             for _, row in df.head(15).iterrows():
@@ -522,7 +533,7 @@ def _fetch_fund_details_xq(fund_code):
     Fetch detailed fund info (Manager, Start Date) from XueQiu.
     """
     try:
-        df = ak.fund_individual_basic_info_xq(symbol=fund_code)
+        df = safe_ak_call(ak.fund_individual_basic_info_xq, symbol=fund_code)
         if not df.empty:
             return df.set_index('item')['value'].to_dict()
     except Exception as e:
@@ -639,7 +650,7 @@ def get_fund_intraday_trend(fund_code):
     Returns a DataFrame with columns ['时间', '估算值', '估算涨跌幅']
     """
     try:
-        df = ak.fund_open_fund_info_em(symbol=fund_code, indicator="单位净值估算走势")
+        df = safe_ak_call(ak.fund_open_fund_info_em, symbol=fund_code, indicator="单位净值估算走势")
         if not df.empty:
             # The columns are usually ['时间', '估算值', '估算涨跌幅']
             df['时间'] = pd.to_datetime(df['时间'])
